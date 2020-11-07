@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-redis/redis/v8"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/adjust/rmq/v3"
+	"github.com/adjust/rmq/v4"
 )
 
 const (
@@ -25,10 +26,18 @@ func main() {
 	errChan := make(chan error, 10)
 	go logErrors(errChan)
 
-	connection, err := rmq.OpenConnection("consumer", "tcp", "localhost:6379", 2, errChan)
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "123456", // no password set
+		DB:       0,  // use default DB
+	})
+	connection, err := rmq.OpenConnectionWithRedisClient("consumer", redisClient, errChan)
+
 	if err != nil {
 		panic(err)
 	}
+
+	cleaner := rmq.NewCleaner(connection)
 
 	queue, err := connection.OpenQueue("things")
 	if err != nil {
@@ -53,6 +62,7 @@ func main() {
 	<-signals // wait for signal
 	go func() {
 		<-signals // hard exit on second signal (in case shutdown gets stuck)
+		cleaner.Clean()
 		os.Exit(1)
 	}()
 
@@ -75,7 +85,7 @@ func NewConsumer(tag int) *Consumer {
 
 func (consumer *Consumer) Consume(delivery rmq.Delivery) {
 	payload := delivery.Payload()
-	debugf("start consume %s", payload)
+	log.Print("start consume %s", payload)
 	time.Sleep(consumeDuration)
 
 	consumer.count++

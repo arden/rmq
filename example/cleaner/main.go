@@ -4,11 +4,18 @@ import (
 	"log"
 	"time"
 
-	"github.com/adjust/rmq/v3"
+	"github.com/adjust/rmq/v4"
+	"github.com/go-redis/redis/v8"
+
 )
 
 func main() {
-	connection, err := rmq.OpenConnection("cleaner", "tcp", "localhost:6379", 2, nil)
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "123456", // no password set
+		DB:       0,  // use default DB
+	})
+	connection, err := rmq.OpenConnectionWithRedisClient("cleaner", redisClient, nil)
 	if err != nil {
 		panic(err)
 	}
